@@ -13,8 +13,8 @@ Target heart rates per zone
 80% (0.8) for zone 4.
 90% (0.9) for zone 5.
 
-clone 
-npm install
-npx expo start
+clone, 
+npm install,
+npx expo start,
 input key
 
