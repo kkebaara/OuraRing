@@ -15,6 +15,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true
   }),
 });
 
@@ -30,8 +32,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [heartRateHistory, setHeartRateHistory] = useState<HeartRateData[]>([]);
 
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Register for notifications on mount
@@ -68,15 +70,7 @@ export default function App() {
           setOuraToken(storedToken);
           setTokenSaved(true);
         } else {
-          // If the API key was provided directly in the app creation
-          const hardcodedToken = 'BUHDRZIIPK7BASH7XX4Q3ITFSGUDREBP';
-          if (hardcodedToken && hardcodedToken.length > 10) {
-            setOuraToken(hardcodedToken);
-            await SecureStore.setItemAsync('ouraToken', hardcodedToken);
-            setTokenSaved(true);
-          } else {
-            setShowSetupDialog(true);
-          }
+          setShowSetupDialog(true);
         }
       } catch (err) {
         console.error('Failed to load token:', err);
@@ -135,7 +129,7 @@ export default function App() {
           'Content-Type': 'application/json',
         },
         params: {
-          start_datetime: new Date(Date.now() - 60000).toISOString(), // Last minute
+          start_datetime: new Date(Date.now() - 300000).toISOString(), // Last 5 minutes
           end_datetime: new Date().toISOString(),
         }
       });
@@ -143,7 +137,7 @@ export default function App() {
       // Check if we got any data back
       if (response.data && response.data.data && response.data.data.length > 0) {
         // Sort by timestamp descending to get the most recent
-        const sortedData = response.data.data.sort((a, b) => 
+        const sortedData = response.data.data.sort((a: { timestamp: string }, b: { timestamp: string }) => 
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
         
