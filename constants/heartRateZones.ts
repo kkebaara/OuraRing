@@ -1,6 +1,6 @@
-// In constants/heartRateZones.ts
 import { HeartRateZone } from '../types';
 
+// Define the heart rate zones
 export const HR_ZONES: HeartRateZone[] = [
   {
     name: 'Rest',
@@ -34,6 +34,7 @@ export const HR_ZONES: HeartRateZone[] = [
   }
 ];
 
+// Function to determine which zone a heart rate falls into
 export const determineHeartRateZone = (heartRate: number): HeartRateZone => {
   return HR_ZONES.find(zone => heartRate >= zone.min && heartRate <= zone.max) || HR_ZONES[0];
 };
