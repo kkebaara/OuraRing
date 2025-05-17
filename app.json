@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#6BB5B5"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourcompany.ouraheartrateanalysis",
@@ -21,7 +19,8 @@
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -30,9 +29,7 @@
         "backgroundColor": "#6BB5B5"
       },
       "package": "com.yourcompany.ouraheartrateanalysis",
-      "permissions": [
-        "NOTIFICATIONS"
-      ],
+      "permissions": ["NOTIFICATIONS"],
       "useNextNotificationsApi": true
     },
     "web": {
@@ -44,15 +41,24 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#ffffff",
-          "sounds": [
-            "./assets/notification-sound.wav"
-          ]
+          "sounds": ["./assets/notification-sound.wav"]
         }
       ]
     ],
     "notification": {
       "icon": "./assets/notification-icon.png",
       "color": "#6BB5B5"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ca12cb9d-c1dc-4770-8daf-88d4a203a08a"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ca12cb9d-c1dc-4770-8daf-88d4a203a08a"
     }
   }
 }
