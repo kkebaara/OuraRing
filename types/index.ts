@@ -1,4 +1,4 @@
-// In types.ts
+// Types for the heart rate data and zones
 export interface HeartRateData {
   timestamp: string;
   bpm: number;
@@ -12,8 +12,15 @@ export interface HeartRateZone {
   color: string;
 }
 
+// Additional types for the app
+export interface HeartRateStats {
+  avg: number;
+  min: number;
+  max: number;
+}
 
-export interface OuraApiResponse {
-  data: HeartRateData[];
-  next_token?: string;
+export interface ZoneDistribution {
+  zoneName: string;
+  percentage: number;
+  color: string;
 }
