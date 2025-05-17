@@ -32,6 +32,7 @@ export default function App() {
   const [tokenSaved, setTokenSaved] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [heartRateHistory, setHeartRateHistory] = useState<HeartRateData[]>([]);
+  const [showToken, setShowToken] = useState<boolean>(false);
   
   // New state variables for historical data
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -72,7 +73,7 @@ export default function App() {
     };
   }, []);
 
-  // Check for stored token on mount and fetch initial data
+  // Check for stored token on mount
   useEffect(() => {
     (async () => {
       try {
@@ -107,13 +108,40 @@ export default function App() {
     }
   };
 
+  // Validate token before saving
+  const validateToken = async (token: string): Promise<boolean> => {
+    try {
+      // Make a simple API call to validate the token
+      const response = await axios.get('https://api.ouraring.com/v2/usercollection/personal_info', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+      return response.status === 200;
+    } catch (err) {
+      console.error('Token validation error:', err);
+      return false;
+    }
+  };
+
   const saveToken = async (): Promise<void> => {
     if (!setupToken || setupToken.trim() === '') {
       Alert.alert('Invalid Token', 'Please enter a valid Oura API token');
       return;
     }
 
+    setLoading(true);
+    
     try {
+      // Validate the token before saving
+      const isValid = await validateToken(setupToken);
+      
+      if (!isValid) {
+        Alert.alert('Invalid Token', 'The provided token could not be validated with Oura API.');
+        setLoading(false);
+        return;
+      }
+      
       await SecureStore.setItemAsync('ouraToken', setupToken);
       setOuraToken(setupToken);
       setTokenSaved(true);
@@ -125,6 +153,8 @@ export default function App() {
     } catch (err) {
       console.error('Error saving token:', err);
       Alert.alert('Error', 'Failed to save your token. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -595,13 +625,23 @@ export default function App() {
                 label="Oura API Token"
                 value={setupToken || ouraToken}
                 onChangeText={setSetupToken}
-                secureTextEntry
+                secureTextEntry={!showToken}
                 style={styles.input}
               />
+              <Button 
+                icon={showToken ? "eye-off" : "eye"} 
+                onPress={() => setShowToken(!showToken)} 
+                style={styles.showTokenButton}
+                compact
+              >
+                {showToken ? "Hide" : "Show"}
+              </Button>
             </Dialog.Content>
             <Dialog.Actions>
               <Button onPress={() => setShowSetupDialog(false)}>Cancel</Button>
-              <Button onPress={saveToken}>Save</Button>
+              <Button onPress={saveToken} disabled={loading}>
+                {loading ? 'Validating...' : 'Save'}
+              </Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -734,6 +774,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
+    marginBottom: 10,
+  },
+  showTokenButton: {
+    alignSelf: 'flex-end',
+    marginTop: -5,
     marginBottom: 10,
   },
   distributionRow: {
