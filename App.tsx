@@ -48,6 +48,12 @@ export default function App() {
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset setup token when dialog opens
+  const openSetupDialog = () => {
+    setSetupToken('');
+    setShowSetupDialog(true);
+  };
+
   // Register for notifications on mount
   useEffect(() => {
     registerForPushNotificationsAsync();
@@ -409,7 +415,7 @@ export default function App() {
       <View style={styles.container}>
         <Appbar.Header style={styles.header}>
           <Appbar.Content title="Oura Heart Rate Analysis" />
-          <Appbar.Action icon="cog" onPress={() => setShowSetupDialog(true)} />
+          <Appbar.Action icon="cog" onPress={openSetupDialog} />
         </Appbar.Header>
 
         <View style={styles.content}>
@@ -601,7 +607,7 @@ export default function App() {
                 </Text>
                 <Button 
                   mode="contained" 
-                  onPress={() => setShowSetupDialog(true)}
+                  onPress={openSetupDialog}
                   style={styles.setupButton}
                 >
                   Set Up Now
@@ -623,10 +629,11 @@ export default function App() {
               </Text>
               <TextInput
                 label="Oura API Token"
-                value={setupToken || ouraToken}
+                value={setupToken}
                 onChangeText={setSetupToken}
                 secureTextEntry={!showToken}
                 style={styles.input}
+                placeholder="Enter your Oura API token here"
               />
               <Button 
                 icon={showToken ? "eye-off" : "eye"} 
