@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { Provider as PaperProvider, Button, Card, Appbar, Dialog, Portal, TextInput } from 'react-native-paper';
+import { Provider as PaperProvider, Button, Card, Appbar, Dialog, Portal, TextInput, Menu, Divider } from 'react-native-paper';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import axios from 'axios';
 import { HR_ZONES, determineHeartRateZone } from './constants/heartRateZones';
 import HeartRateHistoryChart from './components/HeartRateHistoryChart';
 import { HeartRateData, HeartRateZone } from './types';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Configure notifications
 Notifications.setNotificationHandler({
@@ -31,6 +32,16 @@ export default function App() {
   const [tokenSaved, setTokenSaved] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [heartRateHistory, setHeartRateHistory] = useState<HeartRateData[]>([]);
+  
+  // New state variables for historical data
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [datePickerMode, setDatePickerMode] = useState<'start' | 'end'>('start');
+  const [startDate, setStartDate] = useState<Date>(new Date(Date.now() - 86400000)); // Default to 24 hours ago
+  const [endDate, setEndDate] = useState<Date>(new Date()); // Default to now
+  const [timeRangeMenuVisible, setTimeRangeMenuVisible] = useState<boolean>(false);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('Last 24 Hours');
+  const [heartRateStats, setHeartRateStats] = useState<{avg: number, min: number, max: number}>({avg: 0, min: 0, max: 0});
+  const [zoneDistribution, setZoneDistribution] = useState<{zoneName: string, percentage: number, color: string}[]>([]);
 
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
@@ -61,7 +72,7 @@ export default function App() {
     };
   }, []);
 
-  // Check for stored token on mount
+  // Check for stored token on mount and fetch initial data
   useEffect(() => {
     (async () => {
       try {
@@ -69,6 +80,8 @@ export default function App() {
         if (storedToken) {
           setOuraToken(storedToken);
           setTokenSaved(true);
+          // Automatically fetch historical data once token is loaded
+          fetchHistoricalData(startDate, endDate);
         } else {
           setShowSetupDialog(true);
         }
@@ -106,20 +119,23 @@ export default function App() {
       setTokenSaved(true);
       setShowSetupDialog(false);
       Alert.alert('Success', 'Oura token has been saved securely!');
+      
+      // Fetch data immediately after token is saved
+      fetchHistoricalData(startDate, endDate);
     } catch (err) {
       console.error('Error saving token:', err);
       Alert.alert('Error', 'Failed to save your token. Please try again.');
     }
   };
 
-  const fetchHeartRate = async (): Promise<void> => {
+  // Function to fetch latest heart rate for monitoring
+  const fetchLatestHeartRate = async (): Promise<void> => {
     if (!ouraToken) {
       setError('Oura token is not set. Please set it up first.');
       return;
     }
 
     try {
-      setLoading(true);
       setError(null);
       
       // Fetch the latest heart rate data
@@ -144,12 +160,6 @@ export default function App() {
         const latestHR = sortedData[0].bpm;
         setHeartRate(latestHR);
         
-        // Update history data - keep the last 10 readings
-        setHeartRateHistory(prevHistory => {
-          const newHistory = [...prevHistory, sortedData[0]];
-          return newHistory.slice(-10); // Keep only the most recent 10 readings
-        });
-        
         // Determine the zone
         const zone = determineHeartRateZone(latestHR);
         setCurrentZone(zone);
@@ -160,14 +170,117 @@ export default function App() {
         }
       } else {
         console.log('No recent heart rate data available');
-        setError('No recent heart rate data available from Oura. Make sure your ring is synced and worn correctly.');
+        // Don't set error during monitoring to avoid constant error messages
+        if (!isMonitoring) {
+          setError('No recent heart rate data available from Oura. Make sure your ring is synced and worn correctly.');
+        }
       }
     } catch (err: any) {
       console.error('Error fetching heart rate:', err);
+      // Only show error if not in monitoring mode
+      if (!isMonitoring) {
+        setError(`Failed to fetch heart rate data: ${err.message}`);
+      }
+    }
+  };
+
+  // New function to fetch historical heart rate data
+  const fetchHistoricalData = async (start: Date, end: Date): Promise<void> => {
+    if (!ouraToken) {
+      setError('Oura token is not set. Please set it up first.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch historical heart rate data
+      const response = await axios.get('https://api.ouraring.com/v2/usercollection/heartrate', {
+        headers: {
+          'Authorization': `Bearer ${ouraToken}`,
+          'Content-Type': 'application/json',
+        },
+        params: {
+          start_datetime: start.toISOString(),
+          end_datetime: end.toISOString(),
+        }
+      });
+
+      // Process the data if we got any back
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        const hrData = response.data.data;
+        
+        // Sort by timestamp ascending for the chart
+        const sortedData = hrData.sort((a: { timestamp: string }, b: { timestamp: string }) => 
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        
+        setHeartRateHistory(sortedData);
+        
+        // Calculate statistics
+        const bpmValues = sortedData.map((item: HeartRateData) => item.bpm);
+        const min = Math.min(...bpmValues);
+        const max = Math.max(...bpmValues);
+        const avg = Math.round(bpmValues.reduce((sum, val) => sum + val, 0) / bpmValues.length);
+        
+        setHeartRateStats({
+          min,
+          max,
+          avg
+        });
+        
+        // Set current heart rate to the latest reading
+        const latestHR = sortedData[sortedData.length - 1].bpm;
+        setHeartRate(latestHR);
+        setCurrentZone(determineHeartRateZone(latestHR));
+        
+        // Calculate zone distribution
+        calculateZoneDistribution(bpmValues);
+      } else {
+        console.log('No heart rate data available for the selected period');
+        setError('No heart rate data available for the selected time period. Try a different range or make sure your ring is synced.');
+        setHeartRateHistory([]);
+        setHeartRateStats({avg: 0, min: 0, max: 0});
+        setZoneDistribution([]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching historical heart rate data:', err);
       setError(`Failed to fetch heart rate data: ${err.message}`);
+      setHeartRateHistory([]);
+      setHeartRateStats({avg: 0, min: 0, max: 0});
+      setZoneDistribution([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate the distribution of time spent in each heart rate zone
+  const calculateZoneDistribution = (bpmValues: number[]): void => {
+    // Count readings in each zone
+    const zoneCounts = HR_ZONES.map(zone => ({
+      zoneName: zone.name,
+      count: 0,
+      color: zone.color
+    }));
+    
+    bpmValues.forEach(bpm => {
+      const zone = determineHeartRateZone(bpm);
+      const zoneIndex = HR_ZONES.findIndex(z => z.name === zone.name);
+      if (zoneIndex >= 0) {
+        zoneCounts[zoneIndex].count++;
+      }
+    });
+    
+    // Calculate percentages
+    const total = bpmValues.length;
+    const distribution = zoneCounts.map(zone => ({
+      zoneName: zone.zoneName,
+      percentage: Math.round((zone.count / total) * 100),
+      color: zone.color
+    }));
+    
+    setZoneDistribution(distribution);
   };
 
   const sendHeartRateNotification = async (hr: number, zone: HeartRateZone): Promise<void> => {
@@ -184,11 +297,11 @@ export default function App() {
   const startMonitoring = (): void => {
     // Start polling for heart rate
     if (!pollingInterval.current) {
-      fetchHeartRate(); // Initial fetch
+      fetchLatestHeartRate(); // Initial fetch
       
       // Set up interval to fetch every 30 seconds
       pollingInterval.current = setInterval(() => {
-        fetchHeartRate();
+        fetchLatestHeartRate();
       }, 30000); // 30 seconds
       
       setIsMonitoring(true);
@@ -205,11 +318,67 @@ export default function App() {
     }
   };
 
+  // Handle date picker changes
+  const onDateChange = (event: any, selectedDate?: Date): void => {
+    if (selectedDate) {
+      if (datePickerMode === 'start') {
+        setStartDate(selectedDate);
+      } else {
+        setEndDate(selectedDate);
+      }
+    }
+    setShowDatePicker(false);
+    
+    // If both dates are set, fetch data
+    if (selectedDate && ((datePickerMode === 'start' && endDate) || (datePickerMode === 'end' && startDate))) {
+      const start = datePickerMode === 'start' ? selectedDate : startDate;
+      const end = datePickerMode === 'end' ? selectedDate : endDate;
+      
+      // Ensure start is before end
+      if (start < end) {
+        fetchHistoricalData(start, end);
+      } else {
+        Alert.alert('Invalid Date Range', 'Start date must be before end date.');
+      }
+    }
+  };
+
+  // Handle preset time ranges
+  const handleTimeRangeSelect = (range: string): void => {
+    setTimeRangeMenuVisible(false);
+    setSelectedTimeRange(range);
+    
+    let start = new Date();
+    const end = new Date();
+    
+    switch (range) {
+      case 'Last 24 Hours':
+        start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case 'Last 3 Days':
+        start = new Date(end.getTime() - 3 * 24 * 60 * 60 * 1000);
+        break;
+      case 'Last Week':
+        start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'Last Month':
+        start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        // Custom - don't change the dates
+        return;
+    }
+    
+    setStartDate(start);
+    setEndDate(end);
+    fetchHistoricalData(start, end);
+  };
+
   return (
     <PaperProvider>
       <View style={styles.container}>
         <Appbar.Header style={styles.header}>
-          <Appbar.Content title="Oura Heart Rate Zones" />
+          <Appbar.Content title="Oura Heart Rate Analysis" />
           <Appbar.Action icon="cog" onPress={() => setShowSetupDialog(true)} />
         </Appbar.Header>
 
@@ -217,12 +386,89 @@ export default function App() {
           {tokenSaved ? (
             <>
               <Card style={styles.card}>
-                <Card.Title title="Current Heart Rate" />
+                <Card.Title title="Heart Rate Analysis" />
                 <Card.Content>
+                  <View style={styles.timeRangeSelector}>
+                    <Text style={styles.timeRangeLabel}>Time Range:</Text>
+                    <Menu
+                      visible={timeRangeMenuVisible}
+                      onDismiss={() => setTimeRangeMenuVisible(false)}
+                      anchor={
+                        <Button 
+                          mode="outlined" 
+                          onPress={() => setTimeRangeMenuVisible(true)}
+                          icon="clock-outline"
+                        >
+                          {selectedTimeRange}
+                        </Button>
+                      }
+                    >
+                      <Menu.Item onPress={() => handleTimeRangeSelect('Last 24 Hours')} title="Last 24 Hours" />
+                      <Menu.Item onPress={() => handleTimeRangeSelect('Last 3 Days')} title="Last 3 Days" />
+                      <Menu.Item onPress={() => handleTimeRangeSelect('Last Week')} title="Last Week" />
+                      <Menu.Item onPress={() => handleTimeRangeSelect('Last Month')} title="Last Month" />
+                      <Divider />
+                      <Menu.Item onPress={() => handleTimeRangeSelect('Custom')} title="Custom Range" />
+                    </Menu>
+                  </View>
+                  
+                  {selectedTimeRange === 'Custom' && (
+                    <View style={styles.customDateRange}>
+                      <Button 
+                        mode="outlined" 
+                        onPress={() => {
+                          setDatePickerMode('start');
+                          setShowDatePicker(true);
+                        }}
+                        icon="calendar"
+                        style={styles.dateButton}
+                      >
+                        {startDate.toLocaleDateString()}
+                      </Button>
+                      <Text style={styles.toText}>to</Text>
+                      <Button 
+                        mode="outlined" 
+                        onPress={() => {
+                          setDatePickerMode('end');
+                          setShowDatePicker(true);
+                        }}
+                        icon="calendar"
+                        style={styles.dateButton}
+                      >
+                        {endDate.toLocaleDateString()}
+                      </Button>
+                    </View>
+                  )}
+                  
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={datePickerMode === 'start' ? startDate : endDate}
+                      mode="date"
+                      display="default"
+                      onChange={onDateChange}
+                    />
+                  )}
+
                   {loading ? (
-                    <ActivityIndicator size="large" color="#0000ff" />
+                    <ActivityIndicator size="large" color="#0000ff" style={styles.loader} />
                   ) : heartRate ? (
                     <>
+                      <View style={styles.statsContainer}>
+                        <View style={styles.statItem}>
+                          <Text style={styles.statLabel}>Average</Text>
+                          <Text style={styles.statValue}>{heartRateStats.avg} BPM</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <Text style={styles.statLabel}>Min</Text>
+                          <Text style={styles.statValue}>{heartRateStats.min} BPM</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <Text style={styles.statLabel}>Max</Text>
+                          <Text style={styles.statValue}>{heartRateStats.max} BPM</Text>
+                        </View>
+                      </View>
+                      
+                      <Text style={styles.latestHeading}>Latest Reading:</Text>
                       <Text style={styles.heartRate}>{heartRate} BPM</Text>
                       <View style={[styles.zoneIndicator, { backgroundColor: currentZone?.color || '#ccc' }]}>
                         <Text style={styles.zoneText}>
@@ -232,7 +478,7 @@ export default function App() {
                     </>
                   ) : (
                     <Text style={styles.message}>
-                      Tap "Check Now" to get your current heart rate
+                      No heart rate data available for the selected time period.
                     </Text>
                   )}
                   
@@ -240,20 +486,42 @@ export default function App() {
                     <Text style={styles.errorText}>{error}</Text>
                   )}
                 </Card.Content>
-                <Card.Actions>
-                  <Button mode="contained" onPress={fetchHeartRate} disabled={loading}>
-                    Check Now
-                  </Button>
-                </Card.Actions>
               </Card>
 
               {heartRateHistory.length > 0 && (
-                <Card style={styles.card}>
-                  <Card.Title title="Heart Rate History" />
-                  <Card.Content>
-                    <HeartRateHistoryChart data={heartRateHistory} />
-                  </Card.Content>
-                </Card>
+                <>
+                  <Card style={styles.card}>
+                    <Card.Title title="Heart Rate History" />
+                    <Card.Content>
+                      <HeartRateHistoryChart data={heartRateHistory} />
+                    </Card.Content>
+                  </Card>
+                  
+                  <Card style={styles.card}>
+                    <Card.Title title="Zone Distribution" />
+                    <Card.Content>
+                      {zoneDistribution.map((zone, index) => (
+                        <View key={index} style={styles.distributionRow}>
+                          <View style={[styles.distributionLabel, { backgroundColor: zone.color + '40' }]}>
+                            <Text style={styles.zoneName}>{zone.zoneName}</Text>
+                          </View>
+                          <View style={styles.distributionBarContainer}>
+                            <View 
+                              style={[
+                                styles.distributionBar, 
+                                { 
+                                  width: `${zone.percentage}%`,
+                                  backgroundColor: zone.color 
+                                }
+                              ]} 
+                            />
+                            <Text style={styles.distributionPercentage}>{zone.percentage}%</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </Card.Content>
+                  </Card>
+                </>
               )}
 
               <Card style={styles.card}>
@@ -296,7 +564,7 @@ export default function App() {
             </>
           ) : (
             <Card style={styles.card}>
-              <Card.Title title="Welcome to Oura HR Zones" />
+              <Card.Title title="Welcome to Oura HR Analysis" />
               <Card.Content>
                 <Text style={styles.welcomeText}>
                   To get started, you need to set up your Oura Ring API token.
@@ -360,6 +628,52 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 2,
   },
+  timeRangeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  timeRangeLabel: {
+    marginRight: 10,
+    fontSize: 16,
+  },
+  customDateRange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  dateButton: {
+    flex: 1,
+  },
+  toText: {
+    marginHorizontal: 8,
+  },
+  loader: {
+    marginVertical: 20,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  latestHeading: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    color: '#666',
+  },
   heartRate: {
     fontSize: 48,
     fontWeight: 'bold',
@@ -421,5 +735,36 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 10,
+  },
+  distributionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  distributionLabel: {
+    width: 100,
+    padding: 8,
+    borderRadius: 4,
+    marginRight: 10,
+  },
+  distributionBarContainer: {
+    flex: 1,
+    height: 30,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  distributionBar: {
+    height: '100%',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  distributionPercentage: {
+    position: 'absolute',
+    right: 8,
+    top: 6,
+    fontWeight: 'bold',
   },
 });
