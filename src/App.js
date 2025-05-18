@@ -446,174 +446,237 @@ function App() {
             
             {/* Heart Rate Charts */}
             {heartRateData.length > 0 ? (
-              <>
-                {/* Daily View */}
-                {view === 'day' && dailyData.length > 0 && (
-                  <div className="chart-container">
-                    <h3>Heart Rate by Hour</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="hourLabel" />
+              <div className="charts-container">
+                <Slider
+                  dots={true}
+                  infinite={false}
+                  speed={500}
+                  slidesToShow={1}
+                  slidesToScroll={1}
+                  arrows={true}
+                  className="charts-carousel"
+                >
+                  {/* Daily View */}
+                  {view === 'day' && dailyData.length > 0 && (
+                    <div className="chart-slide">
+                      <h3>Heart Rate by Hour</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={dailyData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="hourLabel" />
+                          <YAxis 
+                            domain={[
+                              dataMin => Math.max(0, dataMin - 10), 
+                              dataMax => dataMax + 10
+                            ]} 
+                          />
+                          <Tooltip content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="custom-tooltip">
+                                  <p className="time">{data.hourLabel}</p>
+                                  <p className="bpm">{data.avgBpm} bpm</p>
+                                  <p className="zone" style={{ color: data.zoneColor }}>
+                                    {data.zone}
+                                  </p>
+                                  <p className="readings">{data.readings} readings</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }} />
+                          <Bar 
+                            dataKey="avgBpm" 
+                            name="Average BPM" 
+                            animationDuration={500}
+                          >
+                            {dailyData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.zoneColor} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                  
+                  {/* Raw Heart Rate Data (for all views) */}
+                  <div className="chart-slide">
+                    <h3>Heart Rate History</h3>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={processedHeartRateData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis 
+                          dataKey="time" 
+                          type="category"
+                          tickFormatter={(tick, index) => {
+                            // Show fewer ticks for readability
+                            return index % Math.ceil(processedHeartRateData.length / 8) === 0 ? tick : '';
+                          }}
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={{ stroke: '#ccc' }}
+                        />
                         <YAxis 
                           domain={[
-                            dataMin => Math.max(0, dataMin - 10), 
+                            dataMin => Math.max(30, dataMin - 10), 
                             dataMax => dataMax + 10
-                          ]} 
+                          ]}
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={{ stroke: '#ccc' }}
+                          label={{ 
+                            value: 'Heart Rate (BPM)', 
+                            angle: -90, 
+                            position: 'insideLeft',
+                            style: { textAnchor: 'middle', fill: '#666' }
+                          }}
                         />
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="custom-tooltip">
-                                <p className="time">{data.hourLabel}</p>
-                                <p className="bpm">{data.avgBpm} bpm</p>
-                                <p className="zone" style={{ color: data.zoneColor }}>
-                                  {data.zone}
-                                </p>
-                                <p className="readings">{data.readings} readings</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
-                        <Bar 
-                          dataKey="avgBpm" 
-                          name="Average BPM" 
-                          animationDuration={500}
-                        >
-                          {dailyData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.zoneColor} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-                
-                {/* Raw Heart Rate Data (for all views) */}
-                <div className="chart-container">
-                  <h3>Detailed Heart Rate</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={processedHeartRateData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="time" 
-                        type="category"
-                        tickFormatter={(tick, index) => {
-                          // Show fewer ticks for readability
-                          return index % Math.ceil(processedHeartRateData.length / 10) === 0 ? tick : '';
-                        }}
-                      />
-                      <YAxis 
-                        domain={[
-                          dataMin => Math.max(30, dataMin - 10), 
-                          dataMax => dataMax + 10
-                        ]} 
-                      />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="bpm"
-                        stroke="#ff7300"
-                        dot={false}
-                        activeDot={{ r: 5 }}
-                      />
-                      
-                      {/* Zone threshold lines */}
-                      {Object.values(heartRateZones).map(zone => (
+                        <Tooltip 
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="custom-tooltip">
+                                  <p className="time">{data.time}</p>
+                                  <p className="date">{data.date}</p>
+                                  <p className="bpm" style={{ color: data.zoneColor }}>
+                                    {data.bpm} bpm
+                                  </p>
+                                  <p className="zone" style={{ color: data.zoneColor }}>
+                                    {data.zone}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend 
+                          verticalAlign="top" 
+                          height={36}
+                          formatter={(value, entry) => (
+                            <span style={{ color: '#666' }}>{value}</span>
+                          )}
+                        />
                         <Line
-                          key={zone.name}
                           type="monotone"
-                          dataKey={() => zone.min}
-                          stroke={zone.color}
-                          strokeDasharray="5 5"
+                          dataKey="bpm"
+                          name="Heart Rate"
+                          stroke="#ff7300"
+                          strokeWidth={2}
                           dot={false}
-                          activeDot={false}
-                          name={`${zone.name} (${zone.min} bpm)`}
+                          activeDot={{ r: 6, strokeWidth: 2 }}
+                          animationDuration={1000}
                         />
+                        
+                        {/* Zone threshold lines with labels */}
+                        {Object.values(heartRateZones).map(zone => (
+                          <Line
+                            key={zone.name}
+                            type="monotone"
+                            dataKey={() => zone.min}
+                            stroke={zone.color}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            activeDot={false}
+                            name={`${zone.name} (${zone.min} bpm)`}
+                            strokeWidth={1.5}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                    
+                    {/* Zone Legend */}
+                    <div className="zone-legend">
+                      {Object.values(heartRateZones).map(zone => (
+                        <div key={zone.name} className="zone-legend-item">
+                          <span 
+                            className="zone-color" 
+                            style={{ backgroundColor: zone.color }}
+                          ></span>
+                          <span className="zone-name">{zone.name}</span>
+                          <span className="zone-range">{zone.min}-{zone.max} bpm</span>
+                        </div>
                       ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                {/* Zone Distribution */}
-                {zoneDistribution.length > 0 && (
-                  <div className="chart-container">
-                    <h3>Heart Rate Zone Distribution</h3>
-                    <div className="chart-grid">
-                      <div className="pie-chart">
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={zoneDistribution}
-                              dataKey="percentage"
-                              nameKey="zone"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={100}
-                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            >
-                              {zoneDistribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => `${value}%`} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="zone-table">
-                        <h4>Time in Each Zone</h4>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Zone</th>
-                              <th>Time</th>
-                              <th>Percentage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {zoneDistribution.map((zone, i) => (
-                              <tr key={i}>
-                                <td>
-                                  <span 
-                                    className="zone-color-dot"
-                                    style={{ backgroundColor: zone.color }}
-                                  ></span>
-                                  {zone.zone}
-                                </td>
-                                <td>
-                                  {/* Each measurement is about 5 minutes */}
-                                  {Math.round(zone.count * 5)} min
-                                </td>
-                                <td>{zone.percentage}%</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
                     </div>
                   </div>
-                )}
-                
-                {/* Zone Thresholds Reference */}
-                <div className="zone-reference">
-                  <h3>Your Heart Rate Zones</h3>
-                  <div className="zone-grid">
-                    {Object.values(heartRateZones).map(zone => (
-                      <div
-                        key={zone.name}
-                        className="zone-card"
-                        style={{ backgroundColor: zone.color }}
-                      >
-                        <div className="zone-name">{zone.name}</div>
-                        <div className="zone-range">{zone.min}-{zone.max} bpm</div>
+                  
+                  {/* Zone Distribution */}
+                  {zoneDistribution.length > 0 && (
+                    <div className="chart-slide">
+                      <h3>Heart Rate Zone Distribution</h3>
+                      <div className="chart-grid">
+                        <div className="pie-chart">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={zoneDistribution}
+                                dataKey="percentage"
+                                nameKey="zone"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                {zoneDistribution.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => `${value}%`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="zone-table">
+                          <h4>Time in Each Zone</h4>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Zone</th>
+                                <th>Time</th>
+                                <th>Percentage</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {zoneDistribution.map((zone, i) => (
+                                <tr key={i}>
+                                  <td>
+                                    <span 
+                                      className="zone-color-dot"
+                                      style={{ backgroundColor: zone.color }}
+                                    ></span>
+                                    {zone.zone}
+                                  </td>
+                                  <td>
+                                    {/* Each measurement is about 5 minutes */}
+                                    {Math.round(zone.count * 5)} min
+                                  </td>
+                                  <td>{zone.percentage}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    ))}
+                    </div>
+                  )}
+                  
+                  {/* Zone Thresholds Reference */}
+                  <div className="chart-slide">
+                    <h3>Your Heart Rate Zones</h3>
+                    <div className="zone-grid">
+                      {Object.values(heartRateZones).map(zone => (
+                        <div
+                          key={zone.name}
+                          className="zone-card"
+                          style={{ backgroundColor: zone.color }}
+                        >
+                          <div className="zone-name">{zone.name}</div>
+                          <div className="zone-range">{zone.min}-{zone.max} bpm</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
+                </Slider>
+              </div>
             ) : (
               !loading && (
                 <div className="no-data">
