@@ -6,11 +6,15 @@ import {
 } from 'recharts';
 import './App.css';
 
+// Sample data for demo mode
+const SAMPLE_HEART_RATE_DATA = generateSampleHeartRateData();
+
 function App() {
   // States
   const [token, setToken] = useState('');
   const [age, setAge] = useState(35);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [heartRateData, setHeartRateData] = useState([]);
@@ -66,6 +70,7 @@ function App() {
       
       // If successful, set authenticated
       setIsAuthenticated(true);
+      setIsDemo(false);
       // Store token in localStorage for persistence
       localStorage.setItem('ouraToken', token);
       localStorage.setItem('ouraAge', age.toString());
@@ -77,6 +82,12 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Enter demo mode
+  const handleDemoMode = () => {
+    setIsDemo(true);
+    setHeartRateData(SAMPLE_HEART_RATE_DATA);
   };
 
   // Load saved token on startup
@@ -130,10 +141,29 @@ function App() {
     });
     
     setView(view);
+    
+    // If in demo mode, regenerate sample data for the new view
+    if (isDemo) {
+      switch(view) {
+        case 'day':
+          setHeartRateData(SAMPLE_HEART_RATE_DATA);
+          break;
+        case 'week':
+          setHeartRateData(generateSampleHeartRateData(7));
+          break;
+        case 'month':
+          setHeartRateData(generateSampleHeartRateData(30));
+          break;
+        default:
+          setHeartRateData(SAMPLE_HEART_RATE_DATA);
+      }
+    }
   };
 
   // Fetch heart rate data
   const fetchHeartRateData = async () => {
+    if (isDemo) return; // Skip API call in demo mode
+    
     try {
       setLoading(true);
       setError(null);
@@ -261,6 +291,7 @@ function App() {
   // Handle logout
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setIsDemo(false);
     setToken('');
     setHeartRateData([]);
     localStorage.removeItem('ouraToken');
@@ -278,16 +309,16 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>Oura Heart Rate History</h1>
-        {isAuthenticated && (
+        {(isAuthenticated || isDemo) && (
           <button onClick={handleLogout} className="logout-button">
-            Logout
+            {isDemo ? 'Exit Demo' : 'Logout'}
           </button>
         )}
       </header>
       
       <main className="App-main">
         {/* Authentication Form */}
-        {!isAuthenticated ? (
+        {!isAuthenticated && !isDemo ? (
           <div className="auth-form">
             <h2>Connect to Your Oura Ring</h2>
             {error && <div className="error-message">{error}</div>}
@@ -302,14 +333,16 @@ function App() {
                   placeholder="Enter your Oura token"
                   required
                 />
-                <a 
-                  href="https://cloud.ouraring.com/personal-access-tokens" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="token-link"
-                >
-                  Get your token here
-                </a>
+                <div className="token-links">
+                  <a 
+                    href="https://cloud.ouraring.com/personal-access-tokens" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="token-link"
+                  >
+                    Get your token here
+                  </a>
+                </div>
               </div>
               
               <div className="form-group">
@@ -331,11 +364,28 @@ function App() {
               >
                 {loading ? 'Connecting...' : 'Connect'}
               </button>
+              
+              <div className="demo-option">
+                <p>Don't have an Oura Ring?</p>
+                <button 
+                  type="button" 
+                  className="demo-button"
+                  onClick={handleDemoMode}
+                >
+                  Try Demo Mode
+                </button>
+              </div>
             </form>
           </div>
         ) : (
           /* Heart Rate Data Section */
           <div className="heart-rate-analysis">
+            {isDemo && (
+              <div className="demo-banner">
+                <strong>Demo Mode:</strong> Showing sample data. Connect your Oura Ring for your actual heart rate data.
+              </div>
+            )}
+            
             {error && <div className="error-message">{error}</div>}
             {loading && <div className="loading-message">Loading heart rate data...</div>}
             
@@ -574,6 +624,74 @@ function App() {
       </main>
     </div>
   );
+}
+
+// Generate realistic sample heart rate data
+function generateSampleHeartRateData(days = 1) {
+  const data = [];
+  const now = new Date();
+  const startDate = new Date(now);
+  startDate.setDate(now.getDate() - days);
+  
+  // Generate data for each day
+  for (let day = 0; day < days; day++) {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + day);
+    
+    // Generate data for each hour
+    for (let hour = 0; hour < 24; hour++) {
+      const currentHour = new Date(currentDate);
+      currentHour.setHours(hour);
+      
+      // Determine base heart rate based on time of day
+      let baseHeartRate;
+      if (hour >= 0 && hour < 6) {
+        // Night/sleep: lower heart rate
+        baseHeartRate = 55;
+      } else if (hour >= 6 && hour < 9) {
+        // Morning: gradually increasing
+        baseHeartRate = 65 + (hour - 6) * 5;
+      } else if (hour >= 9 && hour < 12) {
+        // Morning activity: moderate
+        baseHeartRate = 75;
+      } else if (hour >= 12 && hour < 14) {
+        // Lunch time: slightly elevated
+        baseHeartRate = 80;
+      } else if (hour >= 14 && hour < 17) {
+        // Afternoon: moderate
+        baseHeartRate = 75;
+      } else if (hour >= 17 && hour < 20) {
+        // Evening exercise: higher
+        const exerciseDay = day % 2 === 0; // Exercise every other day
+        baseHeartRate = exerciseDay ? 110 : 85;
+      } else {
+        // Evening relaxation: gradually decreasing
+        baseHeartRate = 70 - (hour - 20) * 3;
+      }
+      
+      // Generate 12 readings per hour (every 5 minutes)
+      for (let minute = 0; minute < 60; minute += 5) {
+        const timestamp = new Date(currentHour);
+        timestamp.setMinutes(minute);
+        
+        // Add some random variation
+        const variation = Math.random() * 10 - 5; // -5 to +5
+        const heartRate = Math.round(baseHeartRate + variation);
+        
+        // Add some "workout" spikes on exercise days
+        const isExerciseTime = hour >= 17 && hour < 19 && day % 2 === 0;
+        const exerciseBoost = isExerciseTime ? Math.random() * 50 : 0;
+        
+        data.push({
+          timestamp: timestamp.toISOString(),
+          bpm: Math.max(40, Math.min(180, Math.round(heartRate + exerciseBoost))),
+          source: "sample"
+        });
+      }
+    }
+  }
+  
+  return data;
 }
 
 export default App;
