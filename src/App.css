@@ -40,3 +40,16 @@
   justify-content: space-between;
   margin-top: 0.5rem;
 }
+
+/* Main container styling */
+.App {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+@media (max-width: 768px) {
+  .App {
+    padding: 1rem;
+  }
+}
