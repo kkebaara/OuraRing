@@ -48,8 +48,75 @@
   padding: 2rem;
 }
 
+/* Carousel styling */
+.charts-container {
+  margin: 2rem 0;
+  padding: 0 1rem;
+}
+
+.chart-slide {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0 1rem;
+}
+
+.chart-slide h3 {
+  margin-bottom: 1rem;
+  color: #333;
+  text-align: center;
+}
+
+/* Customize Slick Carousel arrows */
+.slick-prev,
+.slick-next {
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+}
+
+.slick-prev {
+  left: -20px;
+}
+
+.slick-next {
+  right: -20px;
+}
+
+.slick-prev:before,
+.slick-next:before {
+  font-size: 40px;
+  color: #6a1a70;
+}
+
+/* Customize Slick Carousel dots */
+.slick-dots {
+  bottom: -40px;
+}
+
+.slick-dots li button:before {
+  color: #6a1a70;
+}
+
+.slick-dots li.slick-active button:before {
+  color: #6a1a70;
+}
+
 @media (max-width: 768px) {
   .App {
     padding: 1rem;
+  }
+  
+  .chart-slide {
+    margin: 0 0.5rem;
+  }
+  
+  .slick-prev {
+    left: -10px;
+  }
+  
+  .slick-next {
+    right: -10px;
   }
 }
