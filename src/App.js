@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -101,25 +101,6 @@ function App() {
     }
   };
 
-  // Load saved token on startup
-  useEffect(() => {
-    const savedToken = localStorage.getItem('ouraToken');
-    const savedAge = localStorage.getItem('ouraAge');
-    
-    if (savedToken) {
-      setToken(savedToken);
-      setAge(savedAge ? parseInt(savedAge) : 35);
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  // Fetch heart rate data when authenticated or date range changes
-  useEffect(() => {
-    if (isAuthenticated && !isDemo) {
-      fetchHeartRateData();
-    }
-  }, [isAuthenticated, dateRange, isDemo]);
-
   // Set date range based on view
   const updateDateRange = (view) => {
     const today = new Date();
@@ -154,8 +135,8 @@ function App() {
     setView(view);
   };
 
-  // Fetch heart rate data
-  const fetchHeartRateData = async () => {
+  // Fetch heart rate data (defined before useEffects that use it)
+  const fetchHeartRateData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -192,7 +173,26 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, dateRange]);
+
+  // Load saved token on startup
+  useEffect(() => {
+    const savedToken = localStorage.getItem('ouraToken');
+    const savedAge = localStorage.getItem('ouraAge');
+    
+    if (savedToken) {
+      setToken(savedToken);
+      setAge(savedAge ? parseInt(savedAge) : 35);
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Fetch heart rate data when authenticated or date range changes
+  useEffect(() => {
+    if (isAuthenticated && !isDemo) {
+      fetchHeartRateData();
+    }
+  }, [isAuthenticated, isDemo, fetchHeartRateData]);
 
   // Process heart rate data for charts
   const processedHeartRateData = heartRateData.map(hr => {
@@ -283,8 +283,10 @@ function App() {
   // Handle logout
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setIsDemo(false);
     setToken('');
     setHeartRateData([]);
+    setError(null);
     localStorage.removeItem('ouraToken');
     localStorage.removeItem('ouraAge');
   };

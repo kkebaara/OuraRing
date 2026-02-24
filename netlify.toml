@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+# SPA: serve index.html for all routes so the app works on refresh/direct links
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
