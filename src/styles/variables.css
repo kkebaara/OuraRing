@@ -1,0 +1,12 @@
+:root {
+  --color-primary: #6a1a70;
+  --color-primary-light: #b36ae2;
+  --color-error-bg: #f8d7da;
+  --color-error-text: #721c24;
+  --color-surface: #f6f6fa;
+  --color-card: #fff;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --shadow-card: 0 4px 16px rgba(106, 26, 112, 0.08);
+}
